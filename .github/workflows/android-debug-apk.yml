@@ -31,7 +31,7 @@ jobs:
       - name: Install Android SDK platform and build tools
         run: yes | sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'cmake;3.22.1' 'ndk;27.2.12479018'
       - name: Fetch llama.cpp
-        if: ${{ inputs.native == true }}
+        if: ${{ github.event_name == 'push' || inputs.native == true }}
         env:
           LLAMA_REF: ${{ inputs.llama_ref }}
         run: |
@@ -39,7 +39,7 @@ jobs:
           git -C app/src/main/cpp/third_party/llama.cpp checkout --detach "$LLAMA_REF"
       - name: Build debug APK
         run: |
-          if [ '${{ inputs.native }}' = 'true' ]; then
+          if [ '${{ github.event_name }}' = 'push' ] || [ '${{ inputs.native }}' = 'true' ]; then
             gradle --no-daemon :app:assembleDebug -PenableLlamaNative=true --stacktrace
           else
             gradle --no-daemon :app:assembleDebug --stacktrace
