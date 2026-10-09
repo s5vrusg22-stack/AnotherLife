@@ -5,6 +5,7 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include <cstdint>
 namespace {
 std::mutex guard;
 llama_model* model=nullptr;
@@ -40,6 +41,7 @@ extern "C" JNIEXPORT jstring JNICALL Java_com_anotherlife_app_ai_LlamaRuntime_na
  if(count<=0||count>(int)llama_n_ctx(ctx)-513)return err(e,"Prompt too long");
  std::vector<llama_token> tokens((size_t)count);
  if(llama_tokenize(vocab,prompt.c_str(),(int)prompt.size(),tokens.data(),count,true,true)<0)return err(e,"Tokenization failed");
+ // Reset the KV cache between independent requests; do not leak prior character context.
  llama_memory_clear(llama_get_memory(ctx),true);
  llama_sampler* sampler=llama_sampler_chain_init(llama_sampler_chain_default_params());
  llama_sampler_chain_add(sampler,llama_sampler_init_top_k(20));
@@ -62,6 +64,7 @@ extern "C" JNIEXPORT jstring JNICALL Java_com_anotherlife_app_ai_LlamaRuntime_na
  if(ready){std::string out=pending.substr(0,ready);pending.erase(0,ready);std::string modified;for(char c:out){if(c=='\0'){modified.push_back((char)0xC0);modified.push_back((char)0x80);}else modified.push_back(c);}jstring piece=e->NewStringUTF(modified.c_str());if(!piece||e->ExceptionCheck()){if(e->ExceptionCheck())e->ExceptionClear();error="Invalid UTF-8 token";break;}e->CallVoidMethod(receiver,cb,piece);e->DeleteLocalRef(piece);if(e->ExceptionCheck()){e->ExceptionClear();error="Token callback failed";break;}}}
  llama_batch b=llama_batch_get_one(&t,1);if(llama_decode(ctx,b)!=0){error="Decode failed";break;}
  }
+ if(cancelled && error.empty())error="Generation cancelled";
  llama_sampler_free(sampler);e->DeleteLocalRef(cls);return err(e,error.c_str());
 }
 extern "C" JNIEXPORT void JNICALL Java_com_anotherlife_app_ai_LlamaRuntime_nativeCancel(JNIEnv*,jobject){cancelled=true;}
