@@ -16,7 +16,11 @@ import androidx.compose.ui.unit.dp
 import com.anotherlife.app.ai.LlamaRuntime
 import kotlinx.coroutines.launch
 import java.io.File
-import java.io.FileOutputStream
+import androidx.room.Room
+import com.anotherlife.app.data.CharacterMemoryStore
+import com.anotherlife.app.data.NpcMemoryRecord
+import com.anotherlife.app.ai.CharacterPromptBuilder
+import java.util.UUID
 
 class MainActivity : ComponentActivity() {
  override fun onCreate(savedInstanceState: Bundle?) {
@@ -29,6 +33,8 @@ fun AnotherLifeApp() {
  val context=LocalContext.current
  val scope=rememberCoroutineScope()
  val runtime=remember { LlamaRuntime() }
+ val memoryDb=remember { Room.databaseBuilder(context.applicationContext,CharacterMemoryStore::class.java,"npc_memory.db").build() }
+ var characterId by remember { mutableStateOf("main") }
  var modelPath by remember { mutableStateOf("") }
  var status by remember { mutableStateOf("Qwen3 8B GGUF 파일을 선택하세요.") }
  var busy by remember { mutableStateOf(false) }
@@ -56,6 +62,7 @@ fun AnotherLifeApp() {
   Scaffold(topBar={Surface(tonalElevation=3.dp){Text("Another Life · 오프라인 AI",Modifier.fillMaxWidth().padding(20.dp),style=MaterialTheme.typography.titleLarge)}}){insets->
    Column(Modifier.fillMaxSize().padding(insets).padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
     Text(status)
+    OutlinedTextField(characterId,{characterId=it},label={Text("캐릭터 ID")},modifier=Modifier.fillMaxWidth(),singleLine=true)
     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
      Button(enabled=!busy,onClick={picker.launch(arrayOf("*/*"))}){Text("GGUF 선택")}
      Button(enabled=!busy&&modelPath.isNotBlank(),onClick={
@@ -71,10 +78,27 @@ fun AnotherLifeApp() {
     OutlinedTextField(prompt,{prompt=it},label={Text("캐릭터에게 말하기")},modifier=Modifier.fillMaxWidth())
     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
      Button(enabled=!busy&&ready&&prompt.isNotBlank(),onClick={
-      val userText=prompt;prompt="";history.add("나: $userText");busy=true;status="AI 응답 생성 중..."
+      val userText=prompt;val actor=characterId.trim();prompt="";history.add("나: $userText");busy=true;status="AI 응답 생성 중..."
       scope.launch {
-       val result=runtime.generate(userText)
-       result.fold({history.add("AI: $it");status="준비 완료"},{status="추론 오류: ${it.message}"})
+       val result=runCatching {
+        require(actor.isNotBlank()){"캐릭터 ID를 입력하세요."}
+        val memories=kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO){
+         memoryDb.memories().forCharacter("default",actor)
+        }
+        val fullPrompt=CharacterPromptBuilder.build("default",actor,actor,memories,userText)
+        runtime.generate(fullPrompt).getOrThrow()
+       }
+       result.fold({
+        history.add("AI: $it")
+        val reply=it
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+         runCatching {
+          memoryDb.memories().save(NpcMemoryRecord(UUID.randomUUID().toString(),"default",actor,
+           "플레이어: ${userText.take(500)} / 응답: ${reply.take(700)}","DIRECT",55,System.currentTimeMillis()))
+         }
+        }
+        status="준비 완료"
+       },{status="추론 오류: ${it.message}"})
        busy=false
       }
      }){Text("보내기")}
