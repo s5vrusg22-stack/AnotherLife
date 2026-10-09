@@ -1,0 +1,26 @@
+name: Source sanity
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate critical source files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s app/src/main/java/com/anotherlife/app/MainActivity.kt
+          test -s app/src/main/java/com/anotherlife/app/ai/LlamaRuntime.kt
+          test -s app/src/main/java/com/anotherlife/app/ai/ModelImport.kt
+          test -s app/src/main/java/com/anotherlife/app/ai/CharacterPromptBuilder.kt
+          test -s app/src/main/java/com/anotherlife/app/data/CharacterMemoryStore.kt
+          test -s app/src/main/cpp/llama_jni.cpp
+          test -s app/src/main/cpp/CMakeLists.txt
+          grep -q 'ModelImport.install' app/src/main/java/com/anotherlife/app/MainActivity.kt
+          grep -q 'CharacterPromptBuilder.build' app/src/main/java/com/anotherlife/app/MainActivity.kt
+          grep -q 'memoryDb.memories().save' app/src/main/java/com/anotherlife/app/MainActivity.kt
+          grep -q 'llama_model_load_from_file' app/src/main/cpp/llama_jni.cpp
+          echo "Critical source wiring: present (not a compile or runtime test)"
