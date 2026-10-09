@@ -33,10 +33,10 @@ jobs:
       - name: Fetch llama.cpp
         if: ${{ github.event_name == 'push' || inputs.native == true }}
         env:
-          LLAMA_REF: ${{ inputs.llama_ref }}
+          LLAMA_REF: ${{ inputs.llama_ref || 'master' }}
         run: |
-          git clone https://github.com/ggml-org/llama.cpp.git app/src/main/cpp/third_party/llama.cpp
-          git -C app/src/main/cpp/third_party/llama.cpp checkout --detach "$LLAMA_REF"
+          git clone --depth 1 https://github.com/ggml-org/llama.cpp.git app/src/main/cpp/third_party/llama.cpp
+          if [ "$LLAMA_REF" != "master" ]; then git -C app/src/main/cpp/third_party/llama.cpp fetch --depth 1 origin "$LLAMA_REF" && git -C app/src/main/cpp/third_party/llama.cpp checkout --detach FETCH_HEAD; fi
       - name: Record dependency versions
         run: |
           java -version
