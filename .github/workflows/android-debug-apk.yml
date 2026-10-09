@@ -42,6 +42,8 @@ jobs:
           java -version
           gradle --version
           sdkmanager --list_installed
+      - name: Test NPC simulation
+        run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
       - name: Build debug APK
         run: |
           if [ '${{ github.event_name }}' = 'push' ] || [ '${{ inputs.native }}' = 'true' ]; then
