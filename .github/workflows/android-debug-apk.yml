@@ -1,21 +1,17 @@
-name: Build Android debug APK
+name: Build AnotherLife Android APK
 on:
   push:
     branches: [main]
   workflow_dispatch:
     inputs:
       native:
-        description: Compile llama.cpp native backend
+        description: Build llama.cpp native library
         type: boolean
-        default: false
-      llama_ref:
-        description: llama.cpp commit or tag
-        required: false
-        default: master
+        default: true
 jobs:
-  build:
+  test-and-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     permissions:
       contents: read
     steps:
@@ -28,41 +24,38 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
-      - name: Install Android SDK platform and build tools
-        run: yes | sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'cmake;3.22.1' 'ndk;27.2.12479018'
-      - name: Fetch llama.cpp
+      - name: Install SDK and NDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'cmake;3.22.1' 'ndk;27.2.12479018'
+      - name: Kotlin compilation and unit tests
+        run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
+      - name: Fetch llama.cpp for ARM64 native build
         if: ${{ github.event_name == 'push' || inputs.native == true }}
-        env:
-          LLAMA_REF: ${{ inputs.llama_ref || 'master' }}
         run: |
           git clone --depth 1 https://github.com/ggml-org/llama.cpp.git app/src/main/cpp/third_party/llama.cpp
-          if [ "$LLAMA_REF" != "master" ]; then git -C app/src/main/cpp/third_party/llama.cpp fetch --depth 1 origin "$LLAMA_REF" && git -C app/src/main/cpp/third_party/llama.cpp checkout --detach FETCH_HEAD; fi
-      - name: Record dependency versions
-        run: |
-          java -version
-          gradle --version
-          sdkmanager --list_installed
-      - name: Test NPC simulation
-        run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
-      - name: Build debug APK
-        run: |
-          if [ '${{ github.event_name }}' = 'push' ] || [ '${{ inputs.native }}' = 'true' ]; then
-            gradle --no-daemon :app:assembleDebug -PenableLlamaNative=true --stacktrace
-          else
-            gradle --no-daemon :app:assembleDebug --stacktrace
-          fi
-      - name: Upload build reports on failure
-        if: failure()
+          git -C app/src/main/cpp/third_party/llama.cpp rev-parse HEAD | tee llama-cpp-revision.txt
+      - name: Build debug APK with llama.cpp
+        if: ${{ github.event_name == 'push' || inputs.native == true }}
+        run: gradle --no-daemon :app:assembleDebug -PenableLlamaNative=true --stacktrace
+      - name: Build Kotlin-only diagnostic APK
+        if: ${{ failure() }}
+        run: gradle --no-daemon :app:assembleDebug --stacktrace
+        continue-on-error: true
+      - name: Upload APK
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: AnotherLife-arm64-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+      - name: Upload diagnostics
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: AnotherLife-build-diagnostics
           path: |
+            llama-cpp-revision.txt
             app/build/reports/
             app/build/outputs/logs/
           if-no-files-found: ignore
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: AnotherLife-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
