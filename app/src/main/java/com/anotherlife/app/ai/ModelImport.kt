@@ -20,11 +20,12 @@ object ModelImport {
    }
    // A failed rename must not destroy the existing working model.
    val backup = File(target.parentFile, target.name + ".backup")
+   require(!backup.exists()) { "Previous model backup exists; recover it before importing" }
    if (target.exists()) {
     require(target.renameTo(backup)) { "Cannot preserve previous model" }
    }
    if (!partial.renameTo(target)) {
-    if (backup.exists()) backup.renameTo(target)
+    if (backup.exists()) check(backup.renameTo(target)) { "Model restore failed; backup remains at ${backup.absolutePath}" }
     error("Cannot install model")
    }
    backup.delete()
