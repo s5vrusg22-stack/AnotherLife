@@ -9,6 +9,7 @@ import kotlinx.coroutines.withContext
 class LlamaRuntime {
  private val available = runCatching { System.loadLibrary("anotherlife_llama") }.isSuccess
  private val gate = Mutex()
+ val nativeAvailable: Boolean get() = available
  @Volatile private var ready = false
 
  suspend fun loadModel(path: String): Result<Unit> = withContext(Dispatchers.IO) {
@@ -16,6 +17,7 @@ class LlamaRuntime {
    runCatching {
     check(available) { "Native llama.cpp library is missing" }
     ready = false
+    require(path.isNotBlank()) { "Model path is empty" }
     val message = nativeLoad(path, 16384)
     check(message.isEmpty()) { message }
     ready = true
