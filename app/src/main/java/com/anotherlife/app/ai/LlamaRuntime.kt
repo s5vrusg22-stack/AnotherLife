@@ -27,12 +27,13 @@ class LlamaRuntime {
   gate.withLock {
    runCatching {
     check(ready) { "Load the model first" }
+    require(prompt.isNotBlank()) { "Empty prompt" }
     val output = StringBuilder()
     val error = nativeGenerate(prompt, object : TokenReceiver {
      override fun onToken(token: String) { output.append(token) }
     })
     check(error.isEmpty()) { error }
-    output.toString()
+    output.toString().also { check(it.isNotBlank()) { "Model produced no output" } }
    }
   }
  }
