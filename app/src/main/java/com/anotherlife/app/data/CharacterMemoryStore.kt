@@ -29,6 +29,9 @@ interface NpcMemoryDao {
  @Query("SELECT * FROM npc_memory WHERE worldId = :worldId AND characterId = :characterId ORDER BY importance DESC, createdAt DESC LIMIT :limit")
  suspend fun forCharacter(worldId: String, characterId: String, limit: Int = 24): List<NpcMemoryRecord>
 
+ @Query("SELECT COUNT(*) FROM npc_memory WHERE worldId = :worldId AND characterId = :characterId")
+ suspend fun countForCharacter(worldId: String, characterId: String): Int
+
  @Query("DELETE FROM npc_memory WHERE worldId = :worldId AND characterId = :characterId")
  suspend fun forgetCharacter(worldId: String, characterId: String)
 }
