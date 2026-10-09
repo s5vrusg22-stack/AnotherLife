@@ -22,6 +22,13 @@ import com.anotherlife.app.data.CharacterMemoryStore
 import com.anotherlife.app.data.NpcMemoryRecord
 import com.anotherlife.app.ai.CharacterPromptBuilder
 import java.util.UUID
+import androidx.room.withTransaction
+import com.anotherlife.app.data.WorldStateStore
+import com.anotherlife.app.data.SimWorldRecord
+import com.anotherlife.app.data.SimActorRecord
+import com.anotherlife.app.engine.OfflineWorldEngine
+import com.anotherlife.app.engine.WorldTick
+import com.anotherlife.app.engine.WorldActor
 
 class MainActivity : ComponentActivity() {
  override fun onCreate(savedInstanceState: Bundle?) {
@@ -34,8 +41,9 @@ fun AnotherLifeApp() {
  val context=LocalContext.current
  val scope=rememberCoroutineScope()
  val runtime=remember { LlamaRuntime() }
+ val worldDb=remember { Room.databaseBuilder(context.applicationContext,WorldStateStore::class.java,"world_state.db").build() }
  val memoryDb=remember { Room.databaseBuilder(context.applicationContext,CharacterMemoryStore::class.java,"npc_memory.db").build() }
- DisposableEffect(memoryDb) { onDispose { memoryDb.close() } }
+ DisposableEffect(memoryDb,worldDb) { onDispose { memoryDb.close(); worldDb.close() } }
  var characterId by remember { mutableStateOf("main") }
  var modelPath by remember { mutableStateOf(File(context.filesDir,"qwen3-8b.gguf").takeIf { it.exists() }?.absolutePath.orEmpty()) }
  var status by remember { mutableStateOf(if(runtime.nativeAvailable) "Qwen3 8B GGUF 파일을 선택하세요." else "네이티브 AI 라이브러리가 없습니다. ARM64 APK 빌드를 확인하세요.") }
@@ -64,6 +72,32 @@ fun AnotherLifeApp() {
   Scaffold(topBar={Surface(tonalElevation=3.dp){Text("Another Life · 오프라인 AI",Modifier.fillMaxWidth().padding(20.dp),style=MaterialTheme.typography.titleLarge)}}){insets->
    Column(Modifier.fillMaxSize().padding(insets).padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
     Text(status)
+    OutlinedButton(enabled=!busy,onClick={
+     busy=true
+     scope.launch {
+      val outcome=runCatching {
+       kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        worldDb.withTransaction {
+         val dao=worldDb.worlds()
+         val world=dao.world("default")?:SimWorldRecord("default")
+         val stored=dao.actors("default")
+         val actors=if(stored.isEmpty()) listOf(WorldActor("main")) else stored.map {
+          WorldActor(it.actorId,it.energy,it.hunger,it.social)
+         }
+         val next=OfflineWorldEngine.advance(WorldTick(world.minute,actors,emptyList()),60)
+         dao.saveWorld(SimWorldRecord("default",next.minute))
+         dao.saveActors(next.actors.map {
+          SimActorRecord("default",it.id,it.energy,it.hunger,it.social)
+         })
+         next
+        }
+       }
+      }
+      status=outcome.fold({ "세계 시간: "+it.minute+"분 · NPC "+it.actors.size+"명" },
+       { "세계 진행 실패: "+it.message })
+      busy=false
+     }
+    }) { Text("세계 시간 1시간 진행") }
     OutlinedTextField(characterId,{characterId=it},label={Text("캐릭터 ID")},modifier=Modifier.fillMaxWidth(),singleLine=true)
     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
      Button(enabled=!busy,onClick={picker.launch(arrayOf("*/*"))}){Text("GGUF 선택")}
