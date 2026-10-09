@@ -18,7 +18,7 @@ class LlamaRuntime {
     check(available) { "Native llama.cpp library is missing" }
     ready = false
     require(path.isNotBlank()) { "Model path is empty" }
-    val message = nativeLoad(path, 16384)
+    val message = nativeLoad(path, 4096)
     check(message.isEmpty()) { message }
     ready = true
    }
