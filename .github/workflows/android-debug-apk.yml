@@ -42,6 +42,19 @@ jobs:
           for symbol in llama_model_load_from_file llama_model_chat_template llama_chat_apply_template llama_model_get_vocab llama_tokenize llama_get_memory llama_memory_clear llama_sampler_init_top_p llama_batch_get_one; do
             if ! grep -q "$symbol" "$H"; then echo "Missing llama.cpp API: $symbol"; exit 1; fi
           done
+      - name: Check llama.cpp API surface
+        if: ${{ github.event_name == 'push' || inputs.native == true }}
+        run: |
+          set -euo pipefail
+          HEADER=app/src/main/cpp/third_party/llama.cpp/include/llama.h
+          test -s "$HEADER"
+          for symbol in llama_model_load_from_file llama_init_from_model llama_model_chat_template llama_chat_apply_template llama_get_memory llama_memory_clear llama_sampler_chain_init llama_sampler_sample llama_batch_get_one; do
+            if ! grep -q "$symbol" "$HEADER"; then
+              echo "::error::Missing llama.cpp API: $symbol"
+              exit 1
+            fi
+          done
+          echo "llama.cpp API declarations found; native compile is still required"
       - name: Build debug APK with llama.cpp
         if: ${{ github.event_name == 'push' || inputs.native == true }}
         run: |
