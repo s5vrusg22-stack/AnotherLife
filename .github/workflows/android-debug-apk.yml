@@ -37,6 +37,11 @@ jobs:
         run: |
           git clone https://github.com/ggml-org/llama.cpp.git app/src/main/cpp/third_party/llama.cpp
           git -C app/src/main/cpp/third_party/llama.cpp checkout --detach "$LLAMA_REF"
+      - name: Record dependency versions
+        run: |
+          java -version
+          gradle --version
+          sdkmanager --list_installed
       - name: Build debug APK
         run: |
           if [ '${{ github.event_name }}' = 'push' ] || [ '${{ inputs.native }}' = 'true' ]; then
