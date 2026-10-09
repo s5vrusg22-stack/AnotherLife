@@ -41,23 +41,9 @@ fun AnotherLifeApp() {
     val result=kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO){
      runCatching {
       val destination=File(context.filesDir,"qwen3-8b.gguf")
-      val partial=File(context.filesDir,"qwen3-8b.gguf.partial")
-      try {
-       context.contentResolver.openInputStream(uri).use { input ->
-        requireNotNull(input){"모델 파일을 읽을 수 없습니다."}
-        FileOutputStream(partial).use { output->
-         input.copyTo(output, 1024*1024)
-         output.fd.sync()
-        }
-       }
-       require(partial.length()>1024L*1024L){"GGUF 파일이 너무 작습니다."}
-       partial.inputStream().use { input->
-        val header=ByteArray(4)
-        require(input.read(header)==4 && String(header,Charsets.US_ASCII)=="GGUF"){"올바른 GGUF 파일이 아닙니다."}
-       }
-       require(partial.renameTo(destination)){"모델 파일 저장에 실패했습니다."}
-       destination.absolutePath
-      } finally { if(partial.exists()) partial.delete() }
+      val input=requireNotNull(context.contentResolver.openInputStream(uri)){"모델 파일을 읽을 수 없습니다."}
+      com.anotherlife.app.ai.ModelImport.install(input,destination)
+      destination.absolutePath
      }
     }
     modelPath=result.getOrNull()?:""
