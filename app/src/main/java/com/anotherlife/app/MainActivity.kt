@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import com.anotherlife.app.ai.LlamaRuntime
 import kotlinx.coroutines.launch
 import java.io.File
+import androidx.compose.runtime.DisposableEffect
 import androidx.room.Room
 import com.anotherlife.app.data.CharacterMemoryStore
 import com.anotherlife.app.data.NpcMemoryRecord
@@ -34,6 +35,7 @@ fun AnotherLifeApp() {
  val scope=rememberCoroutineScope()
  val runtime=remember { LlamaRuntime() }
  val memoryDb=remember { Room.databaseBuilder(context.applicationContext,CharacterMemoryStore::class.java,"npc_memory.db").build() }
+ DisposableEffect(memoryDb) { onDispose { memoryDb.close() } }
  var characterId by remember { mutableStateOf("main") }
  var modelPath by remember { mutableStateOf("") }
  var status by remember { mutableStateOf("Qwen3 8B GGUF 파일을 선택하세요.") }
@@ -92,9 +94,12 @@ fun AnotherLifeApp() {
         history.add("AI: $it")
         val reply=it
         scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-         runCatching {
+         val saveResult=runCatching {
           memoryDb.memories().save(NpcMemoryRecord(UUID.randomUUID().toString(),"default",actor,
            "플레이어: ${userText.take(500)} / 응답: ${reply.take(700)}","DIRECT",55,System.currentTimeMillis()))
+         }
+         if(saveResult.isFailure) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+          status="응답 생성 완료 · 기억 저장 실패: ${saveResult.exceptionOrNull()?.message}"
          }
         }
         status="준비 완료"
