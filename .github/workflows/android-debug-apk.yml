@@ -51,6 +51,15 @@ jobs:
           else
             gradle --no-daemon :app:assembleDebug --stacktrace
           fi
+      - name: Upload build reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AnotherLife-build-diagnostics
+          path: |
+            app/build/reports/
+            app/build/outputs/logs/
+          if-no-files-found: ignore
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
