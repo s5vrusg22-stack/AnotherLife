@@ -37,7 +37,9 @@ jobs:
           git -C app/src/main/cpp/third_party/llama.cpp rev-parse HEAD | tee llama-cpp-revision.txt
       - name: Build debug APK with llama.cpp
         if: ${{ github.event_name == 'push' || inputs.native == true }}
-        run: gradle --no-daemon :app:assembleDebug -PenableLlamaNative=true --stacktrace
+        run: |
+          set -o pipefail
+          gradle --no-daemon :app:assembleDebug -PenableLlamaNative=true --stacktrace 2>&1 | tee native-build.log
       - name: Build Kotlin-only diagnostic APK
         if: ${{ failure() }}
         run: gradle --no-daemon :app:assembleDebug --stacktrace
@@ -64,6 +66,7 @@ jobs:
           name: AnotherLife-build-diagnostics
           path: |
             llama-cpp-revision.txt
+            native-build.log
             apk-contents.txt
             app/build/reports/
             app/build/outputs/logs/
