@@ -37,7 +37,7 @@ fun AnotherLifeApp() {
  val memoryDb=remember { Room.databaseBuilder(context.applicationContext,CharacterMemoryStore::class.java,"npc_memory.db").build() }
  DisposableEffect(memoryDb) { onDispose { memoryDb.close() } }
  var characterId by remember { mutableStateOf("main") }
- var modelPath by remember { mutableStateOf("") }
+ var modelPath by remember { mutableStateOf(File(context.filesDir,"qwen3-8b.gguf").takeIf { it.exists() }?.absolutePath.orEmpty()) }
  var status by remember { mutableStateOf("Qwen3 8B GGUF 파일을 선택하세요.") }
  var busy by remember { mutableStateOf(false) }
  var ready by remember { mutableStateOf(false) }
@@ -54,7 +54,7 @@ fun AnotherLifeApp() {
       destination.absolutePath
      }
     }
-    modelPath=result.getOrNull()?:""
+    modelPath=result.getOrNull()?:File(context.filesDir,"qwen3-8b.gguf").takeIf { it.exists() }?.absolutePath.orEmpty()
     status=result.fold({"모델 복사 완료. 로드 버튼을 누르세요."},{"복사 실패: ${it.message}"})
     busy=false
    }
@@ -98,11 +98,11 @@ fun AnotherLifeApp() {
           memoryDb.memories().save(NpcMemoryRecord(UUID.randomUUID().toString(),"default",actor,
            "플레이어: ${userText.take(500)} / 응답: ${reply.take(700)}","DIRECT",55,System.currentTimeMillis()))
          }
-         if(saveResult.isFailure) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-          status="응답 생성 완료 · 기억 저장 실패: ${saveResult.exceptionOrNull()?.message}"
+         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+          status=if(saveResult.isFailure) "응답 생성 완료 · 기억 저장 실패: ${saveResult.exceptionOrNull()?.message}" else "준비 완료 · 기억 저장됨"
          }
         }
-        status="준비 완료"
+        status="응답 생성 완료 · 기억 저장 중..."
        },{status="추론 오류: ${it.message}"})
        busy=false
       }
