@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import com.anotherlife.app.ai.LlamaRuntime
 import kotlinx.coroutines.launch
 import java.io.File
+import java.io.FileOutputStream
 
 class MainActivity : ComponentActivity() {
  override fun onCreate(savedInstanceState: Bundle?) {
@@ -31,19 +32,32 @@ fun AnotherLifeApp() {
  var modelPath by remember { mutableStateOf("") }
  var status by remember { mutableStateOf("Qwen3 8B GGUF 파일을 선택하세요.") }
  var busy by remember { mutableStateOf(false) }
+ var ready by remember { mutableStateOf(false) }
  var prompt by remember { mutableStateOf("") }
  val history=remember { mutableStateListOf<String>() }
  val picker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri:Uri?->
-  if(uri!=null){busy=true;status="모델 파일 복사 중..."
+  if(uri!=null){busy=true;ready=false;modelPath="";status="모델 파일 복사 중..."
    scope.launch {
     val result=kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO){
      runCatching {
       val destination=File(context.filesDir,"qwen3-8b.gguf")
-      context.contentResolver.openInputStream(uri).use { input ->
-       requireNotNull(input){"모델 파일을 읽을 수 없습니다."}
-       destination.outputStream().use { output->input.copyTo(output) }
-      }
-      destination.absolutePath
+      val partial=File(context.filesDir,"qwen3-8b.gguf.partial")
+      try {
+       context.contentResolver.openInputStream(uri).use { input ->
+        requireNotNull(input){"모델 파일을 읽을 수 없습니다."}
+        FileOutputStream(partial).use { output->
+         input.copyTo(output, 1024*1024)
+         output.fd.sync()
+        }
+       }
+       require(partial.length()>1024L*1024L){"GGUF 파일이 너무 작습니다."}
+       partial.inputStream().use { input->
+        val header=ByteArray(4)
+        require(input.read(header)==4 && String(header,Charsets.US_ASCII)=="GGUF"){"올바른 GGUF 파일이 아닙니다."}
+       }
+       require(partial.renameTo(destination)){"모델 파일 저장에 실패했습니다."}
+       destination.absolutePath
+      } finally { if(partial.exists()) partial.delete() }
      }
     }
     modelPath=result.getOrNull()?:""
@@ -62,7 +76,7 @@ fun AnotherLifeApp() {
       busy=true;status="모델 로딩 중..."
       scope.launch {
        val result=runtime.loadModel(modelPath)
-       status=result.fold({"AI 모델 준비 완료"},{"로드 실패: ${it.message}"})
+       status=result.fold({ready=true;"AI 모델 준비 완료"},{ready=false;"로드 실패: ${it.message}"})
        busy=false
       }
      }){Text("모델 로드")}
@@ -70,7 +84,7 @@ fun AnotherLifeApp() {
     LazyColumn(Modifier.weight(1f)){items(history){Text(it,Modifier.padding(vertical=7.dp))}}
     OutlinedTextField(prompt,{prompt=it},label={Text("캐릭터에게 말하기")},modifier=Modifier.fillMaxWidth())
     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
-     Button(enabled=!busy&&prompt.isNotBlank(),onClick={
+     Button(enabled=!busy&&ready&&prompt.isNotBlank(),onClick={
       val userText=prompt;prompt="";history.add("나: $userText");busy=true;status="AI 응답 생성 중..."
       scope.launch {
        val result=runtime.generate(userText)
@@ -78,7 +92,7 @@ fun AnotherLifeApp() {
        busy=false
       }
      }){Text("보내기")}
-     OutlinedButton(onClick={runtime.cancel()}){Text("중단")}
+     OutlinedButton(enabled=busy,onClick={runtime.cancel()}){Text("중단")}
     }
     Text("완전 오프라인 · 온도 0.7 · 최대 컨텍스트 16384",style=MaterialTheme.typography.bodySmall)
    }
