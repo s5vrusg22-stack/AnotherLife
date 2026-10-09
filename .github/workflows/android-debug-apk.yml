@@ -35,15 +35,18 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/ggml-org/llama.cpp.git app/src/main/cpp/third_party/llama.cpp
           git -C app/src/main/cpp/third_party/llama.cpp rev-parse HEAD | tee llama-cpp-revision.txt
+      - name: Check llama.cpp API symbols
+        run: |
+          set -euo pipefail
+          H=app/src/main/cpp/third_party/llama.cpp/include/llama.h
+          for symbol in llama_model_load_from_file llama_model_chat_template llama_chat_apply_template llama_model_get_vocab llama_tokenize llama_get_memory llama_memory_clear llama_sampler_init_top_p llama_batch_get_one; do
+            if ! grep -q "$symbol" "$H"; then echo "Missing llama.cpp API: $symbol"; exit 1; fi
+          done
       - name: Build debug APK with llama.cpp
         if: ${{ github.event_name == 'push' || inputs.native == true }}
         run: |
           set -o pipefail
           gradle --no-daemon :app:assembleDebug -PenableLlamaNative=true --stacktrace 2>&1 | tee native-build.log
-      - name: Build Kotlin-only diagnostic APK
-        if: ${{ failure() }}
-        run: gradle --no-daemon :app:assembleDebug --stacktrace
-        continue-on-error: true
       - name: Check APK contents and native library
         if: ${{ success() }}
         run: |
