@@ -38,7 +38,7 @@ fun AnotherLifeApp() {
  DisposableEffect(memoryDb) { onDispose { memoryDb.close() } }
  var characterId by remember { mutableStateOf("main") }
  var modelPath by remember { mutableStateOf(File(context.filesDir,"qwen3-8b.gguf").takeIf { it.exists() }?.absolutePath.orEmpty()) }
- var status by remember { mutableStateOf("Qwen3 8B GGUF 파일을 선택하세요.") }
+ var status by remember { mutableStateOf(if(runtime.nativeAvailable) "Qwen3 8B GGUF 파일을 선택하세요." else "네이티브 AI 라이브러리가 없습니다. ARM64 APK 빌드를 확인하세요.") }
  var busy by remember { mutableStateOf(false) }
  var ready by remember { mutableStateOf(false) }
  var prompt by remember { mutableStateOf("") }
@@ -67,7 +67,7 @@ fun AnotherLifeApp() {
     OutlinedTextField(characterId,{characterId=it},label={Text("캐릭터 ID")},modifier=Modifier.fillMaxWidth(),singleLine=true)
     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
      Button(enabled=!busy,onClick={picker.launch(arrayOf("*/*"))}){Text("GGUF 선택")}
-     Button(enabled=!busy&&modelPath.isNotBlank(),onClick={
+     Button(enabled=!busy&&runtime.nativeAvailable&&modelPath.isNotBlank(),onClick={
       busy=true;status="모델 로딩 중..."
       scope.launch {
        val result=runtime.loadModel(modelPath)
@@ -79,7 +79,7 @@ fun AnotherLifeApp() {
     LazyColumn(Modifier.weight(1f)){items(history){Text(it,Modifier.padding(vertical=7.dp))}}
     OutlinedTextField(prompt,{prompt=it},label={Text("캐릭터에게 말하기")},modifier=Modifier.fillMaxWidth())
     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
-     Button(enabled=!busy&&ready&&prompt.isNotBlank(),onClick={
+     Button(enabled=!busy&&ready&&characterId.isNotBlank()&&prompt.isNotBlank(),onClick={
       val userText=prompt;val actor=characterId.trim();prompt="";history.add("나: $userText");busy=true;status="AI 응답 생성 중..."
       scope.launch {
        val result=runCatching {
