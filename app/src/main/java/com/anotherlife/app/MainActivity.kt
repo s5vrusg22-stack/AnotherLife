@@ -109,7 +109,7 @@ fun AnotherLifeApp() {
      }){Text("보내기")}
      OutlinedButton(enabled=busy,onClick={runtime.cancel()}){Text("중단")}
     }
-    Text("완전 오프라인 · 온도 0.7 · 최대 컨텍스트 16384",style=MaterialTheme.typography.bodySmall)
+    Text("완전 오프라인 · 온도 0.7 · 기본 컨텍스트 4096",style=MaterialTheme.typography.bodySmall)
    }
   }
  }
