@@ -16,12 +16,13 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 data class SimWorldEntity(@PrimaryKey val id: String, val virtualMinute: Long, val autonomyMode: String)
 
 @Entity(tableName = "al_characters", indices = [Index(value = ["worldId"])])
-data class SimCharacterEntity(
+data class CharacterEntity(
     @PrimaryKey val id: String, val worldId: String, val name: String, val role: String,
     val personality: String, val background: String, val rest: Int, val food: Int,
     val social: Int, val closeness: Int, val achievement: Int, val security: Int,
     val curiosity: Int, val autonomyMode: String
 )
+typealias SimCharacterEntity = CharacterEntity
 
 @Entity(tableName = "al_character_moods", indices = [Index(value = ["worldId"])])
 data class CharacterMoodEntity(
@@ -65,6 +66,12 @@ data class DialogueLineEntity(
 data class CharacterMemoryEntity(
     @PrimaryKey val id: String, val worldId: String, val characterId: String,
     val text: String, val provenance: String, val importance: Int, val createdAt: Long
+)
+
+@Entity(tableName = "npc_utterances", indices = [Index(value = ["worldId", "conversationId", "createdAt"])])
+data class NpcUtteranceEntity(
+    @PrimaryKey val id: String, val worldId: String, val conversationId: String,
+    val speakerId: String, val listenerId: String, val text: String, val createdAt: Long
 )
 
 @Dao
@@ -142,12 +149,18 @@ interface DialogueDao {
 @Database(entities = [
     SimWorldEntity::class, SimCharacterEntity::class, CharacterMoodEntity::class,
     CharacterRelationshipEntity::class, NpcScheduleEntity::class, SimulationEventEntity::class,
-    SocialDialogueJobEntity::class, DialogueLineEntity::class, CharacterMemoryEntity::class
+    SocialDialogueJobEntity::class, DialogueLineEntity::class, CharacterMemoryEntity::class,
+    NpcUtteranceEntity::class, DirectorApprovalEntity::class, ConversationEmotionEventEntity::class,
+    SocialPreferenceEntity::class, TimelineBranchEntity::class
 ], version = 12, exportSchema = false)
 abstract class AnotherLifeDatabase : RoomDatabase() {
     abstract fun simulationDao(): SimulationDao
     abstract fun socialDialogueDao(): SocialDialogueDao
     abstract fun dialogueDao(): DialogueDao
+    abstract fun directorDao(): DirectorDao
+    abstract fun emotionDao(): EmotionDao
+    abstract fun socialPreferenceDao(): SocialPreferenceDao
+    abstract fun timelineDao(): TimelineDao
 
     companion object {
         val MIGRATION_1_2 = createMigration(1, 2)
@@ -184,6 +197,17 @@ abstract class AnotherLifeDatabase : RoomDatabase() {
             db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_al_dialogue_lines_conversationId_sequence ON al_dialogue_lines(conversationId, sequence)")
             db.execSQL("CREATE TABLE IF NOT EXISTS al_character_memories (id TEXT NOT NULL, worldId TEXT NOT NULL, characterId TEXT NOT NULL, text TEXT NOT NULL, provenance TEXT NOT NULL, importance INTEGER NOT NULL, createdAt INTEGER NOT NULL, PRIMARY KEY(id))")
             db.execSQL("CREATE INDEX IF NOT EXISTS index_al_character_memories_worldId_characterId_createdAt ON al_character_memories(worldId, characterId, createdAt)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS npc_utterances (id TEXT NOT NULL, worldId TEXT NOT NULL, conversationId TEXT NOT NULL, speakerId TEXT NOT NULL, listenerId TEXT NOT NULL, text TEXT NOT NULL, createdAt INTEGER NOT NULL, PRIMARY KEY(id))")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_npc_utterances_worldId_conversationId_createdAt ON npc_utterances(worldId, conversationId, createdAt)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS director_approvals (id TEXT NOT NULL, worldId TEXT NOT NULL, characterId TEXT NOT NULL, description TEXT NOT NULL, expectedVirtualMinute INTEGER NOT NULL, status TEXT NOT NULL, createdAt INTEGER NOT NULL, resolvedAt INTEGER, PRIMARY KEY(id), FOREIGN KEY(characterId) REFERENCES al_characters(id) ON UPDATE NO ACTION ON DELETE CASCADE)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_director_approvals_worldId ON director_approvals(worldId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_director_approvals_characterId ON director_approvals(characterId)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS conversation_emotion_events (id TEXT NOT NULL, worldId TEXT NOT NULL, conversationId TEXT NOT NULL, speakerId TEXT NOT NULL, listenerId TEXT NOT NULL, category TEXT NOT NULL, evidence TEXT NOT NULL, trustDelta INTEGER NOT NULL, closenessDelta INTEGER NOT NULL, tensionDelta INTEGER NOT NULL, virtualMinute INTEGER NOT NULL, PRIMARY KEY(id))")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_conversation_emotion_events_worldId_conversationId ON conversation_emotion_events(worldId, conversationId)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS social_preferences (worldId TEXT NOT NULL, characterId TEXT NOT NULL, targetId TEXT NOT NULL, affinity INTEGER NOT NULL, blocked INTEGER NOT NULL, PRIMARY KEY(worldId, characterId, targetId))")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_social_preferences_worldId_characterId ON social_preferences(worldId, characterId)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS timeline_branches (worldId TEXT NOT NULL, parentWorldId TEXT, forkMinute INTEGER NOT NULL, createdAt INTEGER NOT NULL, PRIMARY KEY(worldId))")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_timeline_branches_parentWorldId ON timeline_branches(parentWorldId)")
         }
     }
 }
