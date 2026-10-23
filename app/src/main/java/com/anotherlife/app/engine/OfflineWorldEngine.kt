@@ -2,7 +2,7 @@ package com.anotherlife.app.engine
 
 /** Bounded deterministic offline world tick, independent of AI and Android services. */
 data class WorldActor(val id: String, val energy: Int = 70, val hunger: Int = 20, val social: Int = 70)
-data class WorldTick(val minute: Long, val actors: List<WorldActor>, val events: List<String>)
+data class WorldTick(val minute: Long, val actors: List<WorldActor>, val events: List<String> = emptyList())
 object OfflineWorldEngine {
  fun advance(current: WorldTick, minutes: Int): WorldTick {
   require(minutes in 1..1440) { "Tick must be 1..1440 minutes" }
