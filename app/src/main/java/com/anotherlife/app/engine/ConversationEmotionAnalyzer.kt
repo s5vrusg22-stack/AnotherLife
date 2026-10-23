@@ -5,7 +5,7 @@ object ConversationEmotionAnalyzer {
     data class Signal(val category: String, val evidence: String, val trust: Int, val closeness: Int, val tension: Int)
 
     fun analyze(text: String): Signal {
-        val normalized = text.lowercase().replace(Regex("\s+"), " ").take(1200)
+        val normalized = text.lowercase().replace(Regex("\\s+"), " ").take(1200)
         val rules = listOf(
             Triple("RECONCILIATION", listOf("화해하자", "용서해 줘", "용서해줘", "미안했어", "사과할게"), intArrayOf(1, 1, -2)),
             Triple("CONFLICT", listOf("다신 연락하지 마", "거짓말쟁이", "널 믿을 수 없어", "너 때문에 화가 나", "그만 괴롭혀"), intArrayOf(-2, -1, 3)),
