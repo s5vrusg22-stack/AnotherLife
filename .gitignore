@@ -1,0 +1,5 @@
+
+local-models/
+app/src/main/cpp/third_party/llama.cpp/
+.gradle/
+**/build/
